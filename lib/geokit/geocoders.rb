@@ -230,9 +230,9 @@ module Geokit
         xml = res.body
         logger.debug "Geocoder.ca geocoding. Address: #{address}. Result: #{xml}"
         # Parse the document.
-        doc = REXML::Document.new(xml)    
-        address.lat = doc.elements['//latt'].text
-        address.lng = doc.elements['//longt'].text
+        doc = Nokogiri::XML(xml)
+        address.lat = doc.xpath('//latt').text
+        address.lng = doc.xpath('//longt').text
         address.success = true
         return address
       rescue
