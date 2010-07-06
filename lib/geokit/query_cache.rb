@@ -71,9 +71,6 @@ module Geokit
         end
         return file_contents
       end
-      
     end
-    
   end
-  
 end
