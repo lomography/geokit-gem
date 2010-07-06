@@ -160,7 +160,7 @@ module Geokit
       end
       
       def self.query_cache
-        @_query_cacher ||= Geokit::QueryCache::DiskFetcher.new
+        @_query_cacher ||= Geokit::QueryCache::MemFetcher.new
       end
       
       private
