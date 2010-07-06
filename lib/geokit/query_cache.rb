@@ -12,6 +12,30 @@ module Geokit
   # 
   module QueryCache
 
+    class MemFetcher
+      def initialize
+        # we initialize an empty hash
+        @cache = {}
+        @diskfetcher = DiskFetcher.new
+      end
+
+      def do_cache_request(url, max_age=0, &block)
+        # if the API URL exists as a key in cache, we just return it
+        # we also make sure the data is fresh
+        key = MD5.hexdigest(url)
+        if @cache.has_key? key
+          return @cache[key][1] if Time.now-@cache[key][0]<max_age
+        end
+
+        # if the URL does not exist in cache or the data is not fresh,
+        #  we fetch again and store in cache
+
+        disk_request = @diskfetcher.do_cache_request(url, max_age) { block.call }
+        @cache[key] = [Time.now, disk_request]
+        disk_request
+      end
+    end
+
     class DiskFetcher
 
       # Create a new DiskFetcher object.  Default +cache_dir+ is /tmp.
