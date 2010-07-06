@@ -1,4 +1,5 @@
 require File.join(File.dirname(__FILE__), 'test_base_geocoder')
+require 'fileutils'
 
 Geokit::Geocoders::query_cache         = true
 Geokit::Geocoders::query_cache_max_age = 86400 # 1 day
