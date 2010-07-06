@@ -1,6 +1,7 @@
 require 'net/http'
 require 'ipaddr'
 require 'rexml/document'
+require 'nokogiri'
 require 'yaml'
 require 'timeout'
 require 'logger'
