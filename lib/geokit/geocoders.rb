@@ -465,15 +465,17 @@ module Geokit
           "&ll=#{bias.center.ll}&spn=#{bias.to_span.ll}"
         end
       end
-      
-      def self.xml2GeoLoc(xml, address="")
-        doc=REXML::Document.new(xml)
 
-        if doc.elements['//kml/Response/Status/code'].text == '200'
+      def self.xml2GeoLoc(xml, address="")
+        gearth = {"xmlns" => "http://earth.google.com/kml/2.0"}
+
+        doc = Nokogiri::XML(xml)
+
+        if doc.xpath('//xmlns:kml/xmlns:Response/xmlns:Status/xmlns:code', gearth).text == '200'
           geoloc = nil
           # Google can return multiple results as //Placemark elements. 
           # iterate through each and extract each placemark as a geoloc
-          doc.each_element('//Placemark') do |e|
+          doc.xpath('//xmlns:Placemark', gearth).each do |e|
             extracted_geoloc = extract_placemark(e) # g is now an instance of GeoLoc
             if geoloc.nil? 
               # first time through, geoloc is still nil, so we make it the geoloc we just extracted
@@ -485,7 +487,7 @@ module Geokit
             end  
           end
           return geoloc
-        elsif doc.elements['//kml/Response/Status/code'].text == '620'
+        elsif doc.xpath('//xmlns:kml/xmlns:Response/xmlns:Status/xmlns:code', gearth).text == '620'
            raise Geokit::TooManyQueriesError
         else
           logger.info "Google was unable to geocode address: "+address
@@ -502,37 +504,41 @@ module Geokit
 
       # extracts a single geoloc from a //placemark element in the google results xml
       def self.extract_placemark(doc)
+        gearth = {"xmlns" => "http://earth.google.com/kml/2.0"}
+        xal = {"xmlns" => "urn:oasis:names:tc:ciq:xsdschema:xAL:2.0"}
+
         res = GeoLoc.new
-        coordinates=doc.elements['.//coordinates'].text.to_s.split(',')
+        coordinates=doc.xpath('.//xmlns:coordinates', gearth).text.to_s.split(',')
 
         #basics
         res.lat=coordinates[1]
         res.lng=coordinates[0]
-        res.country_code=doc.elements['.//CountryNameCode'].text if doc.elements['.//CountryNameCode']
+        res.country_code=doc.xpath('.//xmlns:CountryNameCode', xal).text          unless doc.xpath('.//xmlns:CountryNameCode', xal).empty?
         res.provider='google'
 
         #extended -- false if not not available
-        res.city = doc.elements['.//LocalityName'].text if doc.elements['.//LocalityName']
-        res.state = doc.elements['.//AdministrativeAreaName'].text if doc.elements['.//AdministrativeAreaName']
-        res.province = doc.elements['.//SubAdministrativeAreaName'].text if doc.elements['.//SubAdministrativeAreaName']
-        res.full_address = doc.elements['.//address'].text if doc.elements['.//address'] # google provides it
-        res.zip = doc.elements['.//PostalCodeNumber'].text if doc.elements['.//PostalCodeNumber']
-        res.street_address = doc.elements['.//ThoroughfareName'].text if doc.elements['.//ThoroughfareName']
-        res.country = doc.elements['.//CountryName'].text if doc.elements['.//CountryName']
-        res.district = doc.elements['.//DependentLocalityName'].text if doc.elements['.//DependentLocalityName']
+        res.city = doc.xpath('.//xmlns:LocalityName', xal).text                   unless doc.xpath('.//xmlns:LocalityName', xal).empty?
+        res.state = doc.xpath('.//xmlns:AdministrativeAreaName', xal).text        unless doc.xpath('.//xmlns:AdministrativeAreaName', xal).empty?
+        res.province = doc.xpath('.//xmlns:SubAdministrativeAreaName', xal).text  unless doc.xpath('.//xmlns:SubAdministrativeAreaName', xal).empty?
+        res.full_address = doc.xpath('.//xmlns:address', gearth).text             unless doc.xpath('.//xmlns:address', gearth).empty?
+        res.zip = doc.xpath('.//xmlns:PostalCodeNumber', xal).text                unless doc.xpath('.//xmlns:PostalCodeNumber', xal).empty?
+        res.street_address = doc.xpath('.//xmlns:ThoroughfareName', xal).text     unless doc.xpath('.//xmlns:ThoroughfareName', xal).empty?
+        res.country = doc.xpath('.//xmlns:CountryName', xal).text                 unless doc.xpath('.//xmlns:CountryName', xal).empty?
+        res.district = doc.xpath('.//xmlns:DependentLocalityName', xal).text      unless doc.xpath('.//xmlns:DependentLocalityName', xal).empty?
         # Translate accuracy into Yahoo-style token address, street, zip, zip+4, city, state, country
         # For Google, 1=low accuracy, 8=high accuracy
-        address_details=doc.elements['.//*[local-name() = "AddressDetails"]']
-        res.accuracy = address_details ? address_details.attributes['Accuracy'].to_i : 0
+        address_details=doc.xpath('.//*[local-name() = "AddressDetails"]')
+        res.accuracy = address_details.any? ? address_details.attribute('Accuracy').text.to_i : 0
         res.precision=%w{unknown country state state city zip zip+4 street address building}[res.accuracy]
-        
+
         # google returns a set of suggested boundaries for the geocoded result
-        if suggested_bounds = doc.elements['//LatLonBox']  
+        suggested_bounds = doc.xpath('//xmlns:LatLonBox', gearth)
+        unless suggested_bounds.empty?
           res.suggested_bounds = Bounds.normalize(
-                                  [suggested_bounds.attributes['south'], suggested_bounds.attributes['west']], 
-                                  [suggested_bounds.attributes['north'], suggested_bounds.attributes['east']])
+                                  [suggested_bounds.attribute('south').text, suggested_bounds.attribute('west').text], 
+                                  [suggested_bounds.attribute('north').text, suggested_bounds.attribute('east').text])
         end
-        
+
         res.success=true
 
         return res
